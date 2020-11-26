@@ -1,5 +1,5 @@
 {
-  "name": "@typescript-eslint/typescript-estree",
+  "name": "@f-list/typescript-eslint-parser",
   "version": "4.8.2",
   "description": "A parser that converts TypeScript source code into an ESTree compatible form",
   "main": "dist/index.js",

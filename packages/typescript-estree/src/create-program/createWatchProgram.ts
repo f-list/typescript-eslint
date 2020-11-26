@@ -272,16 +272,42 @@ function createWatchProgram(
     /*reportWatchStatus*/ () => {},
   ) as WatchCompilerHostOfConfigFile<ts.BuilderProgram>;
 
+  const oldFileExists = watchCompilerHost.fileExists;
+  watchCompilerHost.fileExists = fileName => {
+    return oldFileExists(
+      fileName.endsWith('.vue.ts') ? fileName.slice(0, -3) : fileName,
+    );
+  };
+
   // ensure readFile reads the code being linted instead of the copy on disk
   const oldReadFile = watchCompilerHost.readFile;
   watchCompilerHost.readFile = (filePathIn, encoding): string | undefined => {
     const filePath = getCanonicalFileName(filePathIn);
-    const fileContent =
+    let fileContent =
       filePath === currentLintOperationState.filePath
         ? currentLintOperationState.code
-        : oldReadFile(filePath, encoding);
+        : oldReadFile(
+            filePath.endsWith('.vue.ts') ? filePath.slice(0, -3) : filePath,
+            encoding,
+          );
     if (fileContent !== undefined) {
       parsedFilesSeenHash.set(filePath, createHash(fileContent));
+    }
+    if (filePathIn.endsWith('.vue.ts')) {
+      const compiler = require('@vue/compiler-sfc');
+      const parsed = compiler.parse(fileContent);
+      if (parsed.descriptor) {
+        if (parsed.descriptor.script || parsed.descriptor.scriptSetup) {
+          const script = compiler.compileScript(parsed.descriptor, {
+            babelParserPlugins: ['classProperties'],
+          });
+          if (script.attrs.src)
+            fileContent = `export {default} from '${script.attrs.src}';export * from '${script.attrs.src}';`;
+          else
+            fileContent =
+              Array(script.loc.start.line).join('\n') + script.content;
+        }
+      }
     }
     return fileContent;
   };
